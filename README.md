@@ -17,6 +17,9 @@ task list, the actuator model, publishing and the general conventions.
 Project goal: call Mochi, look at the caller, understand an orange-ball fetch request, approach while watching,
 pick and rise, then carry back to the same person and wait for them to take the ball.
 
+**Task B vision models (David, 2026-11-17):** [download and compare the original, no-DR and DR YOLO-World models](cmu/mac/vision-worldm-20261117/README.md#0-download-the-published-models).
+The published ONNX models run with the existing head-camera detector adapter; the linked guide includes a CPU-only laptop check.
+
 **Team tasks:** [five claimable fetch tasks and starting materials](cmu/planning/fetch-20261103/README.md).
 Start with the supplied CPU-only package; no robot, private credentials or paid cloud account is needed.
 Training for the changed battery backpack waits for the matched scan/model described in the task plan.

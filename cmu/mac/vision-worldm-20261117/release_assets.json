@@ -1,0 +1,34 @@
+{
+  "release_url": "https://github.com/wjcdavid/Microduck-RL/releases/tag/vision-worldm-seed0-v1",
+  "tag": "vision-worldm-seed0-v1",
+  "common_sha256": {
+    "manifest.json": "33bd9a708d002736c1b4b96bfa1cd612e73b74898cacafde1ca8d72fcef7ffcc",
+    "example_frame.jpg": "c2b0cd4a500386a2d6e05084bbb891724ea58547fae070fe8679b15bbb3ac7c6"
+  },
+  "models": {
+    "zero_shot": {
+      "url": "https://github.com/wjcdavid/Microduck-RL/releases/download/vision-worldm-seed0-v1/microduck_zero_shot_deploy.zip",
+      "archive_sha256": "d64845f34bd22184f39cfbe9544095b087ce591331459b6cbc15afd5401de3e7",
+      "archive_size": 94567176,
+      "member": "models/zero_shot.onnx",
+      "onnx_sha256": "8f96356ec856e1a00f8cd6ba20cb2f2848ffbd101288bf0cb3db9591ecb28b25",
+      "onnx_size": 113675017
+    },
+    "no_dr": {
+      "url": "https://github.com/wjcdavid/Microduck-RL/releases/download/vision-worldm-seed0-v1/microduck_no_dr_deploy.zip",
+      "archive_sha256": "a2a6c9a51e64de6a0f303d6bb82449243e754d58152ab060d38e726a709640bf",
+      "archive_size": 94557134,
+      "member": "models/no_dr.onnx",
+      "onnx_sha256": "edb1e27738d94ad1302ed84fa34d1c5ecbd0c52828dd4ffc11ba597629ef49e9",
+      "onnx_size": 113675111
+    },
+    "dr": {
+      "url": "https://github.com/wjcdavid/Microduck-RL/releases/download/vision-worldm-seed0-v1/microduck_dr_deploy.zip",
+      "archive_sha256": "1d9d7b765344c5a5519df240267ed06e15b30ec1eb0c1d937dfdf8a3ac1b470b",
+      "archive_size": 94558617,
+      "member": "models/dr.onnx",
+      "onnx_sha256": "4ad2f2a8a7d78320d8593455cb0b1bc8fa9e756e588c0acdc1816261f3e4a2aa",
+      "onnx_size": 113675108
+    }
+  }
+}

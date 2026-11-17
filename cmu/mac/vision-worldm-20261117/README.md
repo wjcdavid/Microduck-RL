@@ -39,7 +39,61 @@ These are validation results from one training seed, not an independent test
 or evidence of real-robot transfer. Precision/recall are the library's default
 reported operating point, not results at the deployment threshold of 0.25.
 
-## 1. Export the weights
+## 0. Download the published models
+
+The models are published in
+[vision-worldm-seed0-v1](https://github.com/wjcdavid/Microduck-RL/releases/tag/vision-worldm-seed0-v1).
+All three uploaded archive sizes and SHA256 digests match the generated packages.
+Use the current deployment branch for source code and the release for model files.
+
+For a separate checkout on David's Mac, run:
+
+```bash
+cd "$HOME/Desktop"
+git clone --depth 1 --single-branch --branch codex/david-vision-deployment \
+  https://github.com/wjcdavid/Microduck-RL.git microduck_vision
+cd microduck_vision
+conda activate microduck-camera
+python -m pip install -r cmu/mac/requirements-vision-runtime.txt
+python cmu/mac/download_vision_models.py
+```
+
+If that checkout already exists, switch to its deployment branch and pull the
+latest changes instead of cloning again. The download script uses only the
+Python standard library. It installs `zero_shot.onnx`, `no_dr.onnx`, `dr.onnx`,
+`manifest.json` and a synthetic `example_frame.jpg` under
+`artifacts/vision/worldm_seed0_v1/`. It verifies archive and model checksums,
+skips already matching files, and stops before replacing a differing local
+file unless `--overwrite` is explicitly supplied. `--group dr` installs just
+that model. The downloader reads only the model, manifest and example image;
+it does not apply the older `deployment.patch` bundled in each ZIP.
+
+Try all three models on the supplied synthetic example:
+
+```bash
+for group in zero_shot no_dr dr; do
+  python cmu/mac/vision_model.py --group "$group" --conf 0.25 -- \
+    python cmu/mac/learned_target.py \
+    artifacts/vision/worldm_seed0_v1/example_frame.jpg \
+    --out "artifacts/vision_compare/${group}.jpg"
+done
+open artifacts/vision_compare
+```
+
+This runs offline on the laptop. The example is a synthetic validation image;
+replace its path with a real head-camera image for a qualitative real-image
+comparison. It does not start a camera stream or move the robot.
+
+| Model | Release package |
+|---|---|
+| Original pretrained | [microduck_zero_shot_deploy.zip](https://github.com/wjcdavid/Microduck-RL/releases/download/vision-worldm-seed0-v1/microduck_zero_shot_deploy.zip) |
+| No DR, epoch 50 | [microduck_no_dr_deploy.zip](https://github.com/wjcdavid/Microduck-RL/releases/download/vision-worldm-seed0-v1/microduck_no_dr_deploy.zip) |
+| DR, epoch 50 | [microduck_dr_deploy.zip](https://github.com/wjcdavid/Microduck-RL/releases/download/vision-worldm-seed0-v1/microduck_dr_deploy.zip) |
+
+## 1. Export newly trained weights (optional)
+
+The published models are already exported. This section is only needed for a
+new training run or to reproduce the export.
 
 Use the training Colab environment (Ultralytics 8.3.253) or a separate local
 Python environment with a working PyTorch installation. No GPU is required for
@@ -145,23 +199,28 @@ latencies in `ball_detect.py` refer to Shawn's earlier model, not World M.
 
 ## 4. Share binaries separately from source
 
-Keep `.pt` and `.onnx` weights in a GitHub Release or existing team storage.
-The default `artifacts/` directory and `.pt` files are already ignored by Git.
-Upload the three ONNX files, the manifest, and optionally both fine-tuned
-checkpoints as release assets. Use `no_dr.pt` and `dr.pt` as asset names so the
-two `last.pt` files cannot be confused. Publish download locations only after
-the files actually exist. No model binaries are included in this source change.
+The three ONNX models and their manifest are in the published release packages
+linked above. Their pinned URLs, archive sizes and checksums are recorded in
+[release_assets.json](release_assets.json). The default `artifacts/` directory
+and `.pt` files are already ignored by Git. No model binaries are included in
+Git history. For a future training run, publish new versioned assets and update
+the catalog after verifying them; retain this release for reproducibility.
 
 ## Verification and remaining work
 
 ```bash
-python -m pip install pytest
-python -m pytest -q cmu/mac/test_learned_target.py
+python -m pip install pytest 'onnx>=1.12,<2'
+python -m pytest -q cmu/mac/test_learned_target.py cmu/mac/test_download_vision_models.py
 ```
 
 The automated checks use a tiny constant-output ONNX fixture to exercise
 letterboxing, decoding, NMS, the hit/accept contract, class-name compatibility
-and configuration propagation. All 10 checks passed on 2026-11-17.
+and configuration propagation. The 10 adapter checks and 6 release-download
+checks passed on 2026-11-17. The downloader checks include corrupt archives,
+model digest mismatches, preservation of existing files and repeat installs.
+All three public release packages were also downloaded to a fresh directory,
+verified and used by the existing CLI to write annotated example images;
+a second downloader run skipped all three matching models.
 
 The actual uploaded `last(no_dr).pt` and `last(dr).pt` were also exported and
 validated on 2026-11-17, together with the checksum-matched original model.
