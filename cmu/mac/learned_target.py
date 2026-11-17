@@ -19,6 +19,9 @@ In approach.py / seepick.py main() the swap is one line:
 
 Model file: $LEARNED_TARGET_MODEL, else runtime-overlay/models/learned_target.onnx (next to walk61.onnx; that folder
 is git-ignored).
+Set $LEARNED_TARGET_PROMPTS to the exported class name (for David's World models: "orange ball"). Multiple baked
+classes can be separated with '|'. $LEARNED_TARGET_CONF overrides the default confidence threshold. These settings
+are read at import time; restart the vision process after changing models or settings.
 
 CLI (run with ~/.venvs/microduck-walk/bin/python):
     learned_target.py image.png [--out annotated.jpg] [--model x.onnx] [--conf 0.1] [--prompts "small orange ball"]
@@ -35,9 +38,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL = os.environ.get("LEARNED_TARGET_MODEL") or os.path.join(
     HERE, "..", "..", "..", "hardware-design-20260912", "whole-robot-20260912", "runtime-overlay", "models",
     "learned_target.onnx")
-PROMPTS = ("small orange ball",)   # which baked prompts count; None = all of them
-CONF = 0.10                        # 2026-11-12, 1360 robot frames: the false boxes score <= 0.054, the office balls
-#                                    0.57-0.81 (learned-target-20261112/frames.json holds the test subset)
+def _parse_prompts(value):
+    if value.strip() == "all":
+        return None
+    prompts = tuple(p.strip() for p in value.split("|") if p.strip())
+    if not prompts:
+        raise ValueError("LEARNED_TARGET_PROMPTS must name at least one baked class, or 'all'")
+    return prompts
+
+
+PROMPTS = _parse_prompts(os.environ.get("LEARNED_TARGET_PROMPTS", "small orange ball"))
+# Default calibrated on Shawn's 2026-11-12 export; evaluate thresholds again for a different model.
+CONF = float(os.environ.get("LEARNED_TARGET_CONF", "0.10"))
+if not np.isfinite(CONF) or not 0 < CONF <= 1:
+    raise ValueError("LEARNED_TARGET_CONF must be in (0, 1]")
 IOU = 0.5
 MIN_AREA = 16                      # box area, px
 MAX_SIDE = 0.5                     # a box wider or taller than this fraction of the frame is not a small object
@@ -188,13 +202,14 @@ def main():
     ap.add_argument("--out", default=None, help="write an annotated copy here")
     ap.add_argument("--model", default=None)
     ap.add_argument("--conf", type=float, default=CONF)
-    ap.add_argument("--prompts", default="|".join(PROMPTS), help="baked prompts to use, '|' separated; 'all' for all")
+    ap.add_argument("--prompts", default="all" if PROMPTS is None else "|".join(PROMPTS),
+                    help="baked prompts to use, '|' separated; 'all' for all")
     ap.add_argument("--threads", type=int, default=THREADS)
     args = ap.parse_args()
     img = cv2.imread(args.image)
     if img is None:
         raise SystemExit(f"cannot read {args.image}")
-    prompts = None if args.prompts == "all" else tuple(args.prompts.split("|"))
+    prompts = _parse_prompts(args.prompts)
     m = load(args.model, args.threads)
     print(f"model {m.path} input {m.h}x{m.w} prompts {m.names}")
     t0 = time.perf_counter()
@@ -206,7 +221,9 @@ def main():
         print(f"bbox {hit['bbox']} score {hit['score']:.3f} label {hit['label']!r} boxes {hit['n_blobs']} "
               f"({dt * 1000:.0f} ms)")
     if args.out:
-        cv2.imwrite(args.out, annotate(img, hit, candidates(img, m, args.conf, prompts)))
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        if not cv2.imwrite(args.out, annotate(img, hit, candidates(img, m, args.conf, prompts))):
+            raise SystemExit(f"cannot write {args.out}")
         print("wrote", args.out)
 
 

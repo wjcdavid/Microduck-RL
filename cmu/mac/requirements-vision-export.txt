@@ -1,0 +1,5 @@
+# Use a separate Python 3.12 environment on the Mac; Colab's existing torch can also be used.
+ultralytics==8.3.253
+onnx>=1.12,<2
+onnxruntime>=1.17
+git+https://github.com/ultralytics/CLIP.git

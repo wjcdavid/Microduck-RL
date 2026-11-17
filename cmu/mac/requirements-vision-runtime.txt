@@ -1,0 +1,4 @@
+# The robot only needs ONNX inference, not PyTorch/CLIP or the exporter.
+numpy
+opencv-python-headless
+onnxruntime>=1.17

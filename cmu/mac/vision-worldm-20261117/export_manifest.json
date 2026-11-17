@@ -1,0 +1,79 @@
+{
+  "experiment": "worldm_seed0_v1",
+  "ultralytics": "8.3.253",
+  "class_name": "orange ball",
+  "checkpoint_selection": "last.pt after 50 epochs for both fine-tuned models",
+  "export": {
+    "format": "onnx",
+    "imgsz": 640,
+    "batch": 1,
+    "device": "cpu",
+    "half": false,
+    "dynamic": false,
+    "simplify": false,
+    "nms": false,
+    "opset": 17
+  },
+  "models": {
+    "zero_shot": {
+      "checkpoint_file": "yolov8m-worldv2.pt",
+      "checkpoint_sha256": "b614d33aa35b8e61d988041ff6939dfb3ed627af88ccaf643e4cdb822eb41d71",
+      "onnx_file": "zero_shot.onnx",
+      "onnx_sha256": "8f96356ec856e1a00f8cd6ba20cb2f2848ffbd101288bf0cb3db9591ecb28b25",
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_shape": [
+        1,
+        5,
+        8400
+      ],
+      "names": {
+        "0": "orange ball"
+      }
+    },
+    "no_dr": {
+      "checkpoint_file": "last(no_dr).pt",
+      "checkpoint_sha256": "9d7e18da9a7a9daa7471f00895f98c88a95d191971e468c6f3d40d90cbf33fcd",
+      "onnx_file": "no_dr.onnx",
+      "onnx_sha256": "edb1e27738d94ad1302ed84fa34d1c5ecbd0c52828dd4ffc11ba597629ef49e9",
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_shape": [
+        1,
+        5,
+        8400
+      ],
+      "names": {
+        "0": "orange ball"
+      }
+    },
+    "dr": {
+      "checkpoint_file": "last(dr).pt",
+      "checkpoint_sha256": "27480a63a760b7693493f387424c72e9362cd1dc8144b4d33525e46766a0ab1f",
+      "onnx_file": "dr.onnx",
+      "onnx_sha256": "4ad2f2a8a7d78320d8593455cb0b1bc8fa9e756e588c0acdc1816261f3e4a2aa",
+      "input_shape": [
+        1,
+        3,
+        640,
+        640
+      ],
+      "output_shape": [
+        1,
+        5,
+        8400
+      ],
+      "names": {
+        "0": "orange ball"
+      }
+    }
+  }
+}

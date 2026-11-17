@@ -1,0 +1,184 @@
+# David's Task B detector handoff
+
+Related task: [Fetch B, continuous vision and approach](https://github.com/qilinxiaoxiang/microduck_rl/issues/3).
+Base revision: `867edf0598cc401763b23f44e7b640ebaac2e0c8`.
+
+This change prepares the three YOLO-World M v2 variants for the existing
+`cmu/mac/learned_target.py` ONNX adapter. It adds an exporter and a model selector.
+It does not complete target tracking, approach, pickup, or the full fetch task.
+
+## Checkpoints and current evidence
+
+The training notebook saved these paths under
+`MyDrive/16831robotproject/microduck_world`:
+
+| Variant | Checkpoint relative to that directory | Export name |
+|---|---|---|
+| Original pretrained baseline | `pretrained/yolov8m-worldv2.pt` | `zero_shot.onnx` |
+| No DR | `runs/worldm_seed0_v1/no_dr/weights/last.pt` | `no_dr.onnx` |
+| DR | `runs/worldm_seed0_v1/dr/weights/last.pt` | `dr.onnx` |
+
+Both fine-tuned models start independently from the same pretrained model and
+run 50 epochs, seed 0, input 640, batch 4, AdamW, initial learning rate 0.0002.
+Training-time image augmentations were disabled in both groups to isolate
+render-time DR. The two `last.pt` files are the fixed-epoch checkpoints used
+in the recorded comparison. Each group's `best.pt` was selected on its own
+validation domain; it is not the checkpoint used in this table.
+
+The [recorded CSV](synthetic_validation_comparison.csv) comes from the completed
+Colab notebook's common evaluation, using the **same 300 DR synthetic validation
+images** for all three models (228 ball instances, 72 background images).
+
+| Variant | Precision | Recall | mAP50 | mAP50-95 |
+|---|---:|---:|---:|---:|
+| Original | 0.8601 | 0.7823 | 0.8624 | 0.6656 |
+| No DR, last | 0.9613 | 0.8684 | 0.9333 | 0.6890 |
+| DR, last | 0.9865 | 0.9635 | 0.9909 | 0.8455 |
+
+These are validation results from one training seed, not an independent test
+or evidence of real-robot transfer. Precision/recall are the library's default
+reported operating point, not results at the deployment threshold of 0.25.
+
+## 1. Export the weights
+
+Use the training Colab environment (Ultralytics 8.3.253) or a separate local
+Python environment with a working PyTorch installation. No GPU is required for
+this CPU export. On the Mac shown in the original setup, Python is x86_64;
+using the existing Colab environment avoids changing that installation.
+
+From a checkout of this branch:
+
+```bash
+python -m pip install -r cmu/mac/requirements-vision-export.txt
+```
+
+If the two downloaded checkpoints are on the Mac Desktop:
+
+```bash
+python cmu/mac/export_learned_target.py \
+  --no-dr "$HOME/Desktop/last(no_dr).pt" \
+  --dr "$HOME/Desktop/last(dr).pt"
+```
+
+Alternatively, in Colab, mount Drive and run the exporter from the repository
+checkout using the original paths:
+
+```bash
+python cmu/mac/export_learned_target.py \
+  --zero-shot /content/drive/MyDrive/16831robotproject/microduck_world/pretrained/yolov8m-worldv2.pt \
+  --no-dr /content/drive/MyDrive/16831robotproject/microduck_world/runs/worldm_seed0_v1/no_dr/weights/last.pt \
+  --dr /content/drive/MyDrive/16831robotproject/microduck_world/runs/worldm_seed0_v1/dr/weights/last.pt \
+  --out /content/drive/MyDrive/16831robotproject/microduck_world/deploy/worldm_seed0_v1
+```
+
+Omitting `--zero-shot` lets Ultralytics download the official
+`yolov8m-worldv2.pt`; the exporter checks its SHA256 against the training
+baseline. Original checkpoint SHA256:
+`b614d33aa35b8e61d988041ff6939dfb3ed627af88ccaf643e4cdb822eb41d71`.
+
+The original model is given the prompt `orange ball`. Fine-tuned classes are
+checked and preserved. All exports are static 640x640, batch 1, FP32, opset 17,
+with `nms=False`, `dynamic=False`, `half=False`, and `simplify=False`.
+The runtime adapter applies NMS itself. Exporting with embedded NMS changes
+the output contract and is incompatible with this adapter.
+
+Each ONNX file must pass the ONNX checker, metadata/input/output checks and
+one CPU inference before the exporter reports success. The generated
+`manifest.json` records checkpoint and ONNX hashes. Export uses temporary
+copies and does not modify source `.pt` files.
+
+Default output directory relative to the repo:
+`artifacts/vision/worldm_seed0_v1/`. Copy the three ONNX files and manifest
+there if they were exported in Colab. PyTorch and CLIP are not needed by the
+robot after export.
+
+## 2. Compare offline images first
+
+Use a separate runtime environment if exporting elsewhere:
+
+```bash
+python -m pip install -r cmu/mac/requirements-vision-runtime.txt
+```
+
+Put a real head-camera image at `real_frame.jpg`, then run:
+
+```bash
+for group in zero_shot no_dr dr; do
+  python cmu/mac/vision_model.py --group "$group" --conf 0.25 -- \
+    python cmu/mac/learned_target.py real_frame.jpg \
+    --out "out/vision_compare/${group}.jpg"
+done
+```
+
+`0.25` is a shared starting threshold for replay, not a calibrated threshold.
+The adapter also has a 16-pixel minimum box area and half-frame maximum box
+side. Tiny or very close balls may be filtered even when the network finds
+them. Validate these filters on real development recordings before final tests.
+
+## 3. Select a model for the existing vision process
+
+The selector injects `LEARNED_TARGET_MODEL`, `LEARNED_TARGET_PROMPTS=orange ball`,
+and `LEARNED_TARGET_CONF` into an existing command. It prints shell exports if
+no command is supplied:
+
+```bash
+python cmu/mac/vision_model.py --group dr --conf 0.25
+```
+
+Copy the printed exports into the shell that launches the team's existing
+vision process. Change `dr` to `no_dr` or `zero_shot` to select another model.
+Restart the process after changing the selection: settings are read at import
+time and model sessions are cached. With no environment overrides, the previous
+`small orange ball` prompt and 0.10 threshold remain the defaults for Shawn's
+existing export.
+
+The current orange-ball path in `seepick.py` uses `BallDetect` to run learned
+inference in a background worker. Keep that worker, its frame context, tracking,
+and the existing motion controller. Do not put synchronous YOLO inference into
+the 50 Hz motor loop. The standalone `approach.py` entry point still uses its
+HSV detector; changing the environment alone does not replace every detector
+entry point. This handoff does not start robot motion.
+
+Measure end-to-end latency on the actual robot before attempting closed-loop
+approach. Colab L4 timing does not predict onboard CPU throughput, and the
+latencies in `ball_detect.py` refer to Shawn's earlier model, not World M.
+
+## 4. Share binaries separately from source
+
+Keep `.pt` and `.onnx` weights in a GitHub Release or existing team storage.
+The default `artifacts/` directory and `.pt` files are already ignored by Git.
+Upload the three ONNX files, the manifest, and optionally both fine-tuned
+checkpoints as release assets. Use `no_dr.pt` and `dr.pt` as asset names so the
+two `last.pt` files cannot be confused. Publish download locations only after
+the files actually exist. No model binaries are included in this source change.
+
+## Verification and remaining work
+
+```bash
+python -m pip install pytest
+python -m pytest -q cmu/mac/test_learned_target.py
+```
+
+The automated checks use a tiny constant-output ONNX fixture to exercise
+letterboxing, decoding, NMS, the hit/accept contract, class-name compatibility
+and configuration propagation. All 10 checks passed on 2026-11-17.
+
+The actual uploaded `last(no_dr).pt` and `last(dr).pt` were also exported and
+validated on 2026-11-17, together with the checksum-matched original model.
+See [export_manifest.json](export_manifest.json) for checkpoint/ONNX hashes and
+[export_verification.json](export_verification.json) for the recorded checks.
+All three exports have input `[1,3,640,640]`, output `[1,5,8400]`, and one baked
+class, `orange ball`. Their outputs were compared with the PyTorch models on
+the same six existing synthetic validation images (four positive, two negative):
+all 18 model/image comparisons passed. Detection counts agreed; the maximum
+box difference was 0.5 pixels (the adapter rounds boxes) and the maximum
+confidence difference was approximately 0.000033. This is a conversion check,
+not an additional accuracy benchmark. Export used CPU PyTorch 2.15.0,
+Ultralytics 8.3.253, ONNX 1.23.2, and the ONNX Runtime version in the report.
+Real-image accuracy and onboard timing still require robot recordings/hardware.
+
+Keep real development recordings separate from a final held-out test split
+by recording session. Compare all three models on that same test set, including
+no-ball frames, self-shadow, orange distractors, detection recall, false
+selections, identity switches and end-to-end latency. Detection results alone
+do not establish pickup success or completion of Task B.
